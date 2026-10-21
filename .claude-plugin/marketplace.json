@@ -1,0 +1,14 @@
+{
+  "name": "cv-skills",
+  "description": "The cv-skills plugin: tailor a master RenderCV CV to a job posting with pawl.",
+  "owner": {
+    "name": "Daniel Ferreira"
+  },
+  "plugins": [
+    {
+      "name": "cv-skills",
+      "source": "./",
+      "description": "Tailor a master RenderCV CV to a job posting with pawl: selection and listed term swaps only, a recruiter-style review, and a human approval gate."
+    }
+  ]
+}

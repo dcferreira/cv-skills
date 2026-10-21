@@ -1,0 +1,38 @@
+% Fictional single-file CV used as a conversion fixture (no real person).
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\newcommand{\job}[4]{\textbf{#1} \hfill #2\\ \textit{#3} \hfill #4\par}
+\newcommand{\bul}[1]{\item #1}
+\newcommand{\skillline}[2]{\textbf{#1:} #2\\}
+\begin{document}
+\begin{center}
+  {\Huge Mara Linden}\\
+  Backend engineer \textbullet{} Utrecht, Netherlands \textbullet{} mara.linden@example.com
+\end{center}
+
+\section*{Profile}
+Backend engineer with six years of experience building payment APIs that stay up.
+
+\section*{Experience}
+\job{Harborlight Payments}{Utrecht}{Senior Backend Engineer}{Feb 2021 -- present}
+\begin{itemize}
+  \bul{Reduced p99 latency of the settlement API from 900~ms to 120~ms}
+  \bul{Cut on-call pages by 60\% by adding \textbf{SLO}-based alerting}
+  \bul{Introduced contract tests between 12 services, replacing a shared R\&D staging cluster}
+  % \bul{Managed a team of ten engineers}
+\end{itemize}
+
+\job{Brightmoor Software}{Delft}{Software Engineer}{Jul 2018 -- Jan 2021}
+\begin{itemize}
+  \bul{Built an invoicing service used by 3,000 merchants}
+  \bul{Migrated the Z\"urich billing database to PostgreSQL 14}
+\end{itemize}
+
+\section*{Education}
+\job{Utrecht Polytechnic}{Utrecht}{BSc Computer Science}{2014 -- 2018}
+
+\section*{Skills}
+\skillline{Languages}{Python, Go, SQL}
+\skillline{Tools}{PostgreSQL, Kafka, Docker (Compose)}
+\end{document}

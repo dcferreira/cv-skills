@@ -1,0 +1,49 @@
+# What a faithful conversion of cv.tex looks like.
+cv:
+  name: Mara Linden
+  headline: Backend engineer
+  location: Utrecht, Netherlands
+  email: mara.linden@example.com
+  sections:
+    profile:
+      - Backend engineer with six years of experience building payment APIs that stay up.
+    experience:
+      - company: Harborlight Payments
+        position: Senior Backend Engineer
+        location: Utrecht
+        start_date: 2021-02
+        end_date: present
+        highlights:
+          - Reduced p99 latency of the settlement API from 900 ms to 120 ms
+          - Cut on-call pages by 60% by adding **SLO**-based alerting
+          - Introduced contract tests between 12 services, replacing a shared R&D staging cluster
+      - company: Brightmoor Software
+        position: Software Engineer
+        location: Delft
+        start_date: 2018-07
+        end_date: 2021-01
+        highlights:
+          - Built an invoicing service used by 3,000 merchants
+          - Migrated the Zürich billing database to PostgreSQL 14
+    education:
+      - institution: Utrecht Polytechnic
+        area: Computer Science
+        degree: BSc
+        location: Utrecht
+        start_date: 2014
+        end_date: 2018
+    skills:
+      - label: Languages
+        details: Python, Go, SQL
+      - label: Tools
+        details: PostgreSQL, Kafka, Docker (Compose)
+design:
+  theme: classic
+  header:
+    connections:
+      show_icons: false
+      display_urls_instead_of_usernames: true
+locale:
+  language: english
+settings:
+  current_date: 2026-10-20

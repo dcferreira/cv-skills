@@ -1,0 +1,31 @@
+{
+  "master_hash": "sha256:e010b797b6ecb5bda86c5db75fa71e5e291c382ab0dbd1f76f75cd81a8ade482",
+  "sections": [
+    {"id": "profile", "entries": [
+      {"id": "profile.1"},
+      {"id": "profile.0"}]},
+    {"id": "experience", "entries": [
+      {"id": "experience.0", "highlights": [
+        "experience.0.highlights.2",
+        "experience.0.highlights.0",
+        "experience.0.highlights.1"]},
+      {"id": "experience.1", "highlights": [
+        "experience.1.highlights.1",
+        "experience.1.highlights.0"]}]},
+    {"id": "skills", "entries": [
+      {"id": "skills.1", "details": [
+        "skills.1.details.2",
+        "skills.1.details.0",
+        "skills.1.details.1"]},
+      {"id": "skills.0", "details": [
+        "skills.0.details.0",
+        "skills.0.details.2"]}]},
+    {"id": "education", "entries": [
+      {"id": "education.0", "highlights": ["education.0.highlights.0"]}]},
+    {"id": "honors", "entries": [
+      {"id": "honors.1"}]}],
+  "swaps": [
+    {"target_id": "experience.0.summary", "from": "forecasting product", "to": "demand-forecasting product"},
+    {"target_id": "experience.0.highlights.2", "from": "four ML teams", "to": "four machine-learning teams"},
+    {"target_id": "skills.0.details.0", "from": "(pandas, polars)", "to": "(pandas and polars)"}]
+}

@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/rendercv/rendercv/refs/tags/v2.8/schema.json
+#
+# Fictional example master CV for cv-skills. The person, companies and
+# institutions are invented. Extra keys on entries (strings only):
+#   pin: yes        -> the entry is kept in every tailored CV
+#   tags: a, b      -> hints for the drafter
+#   title_variants: A; B -> other job titles the entry may show instead of `position`
+cv:
+  name: Robin Kestrel
+  headline: Data engineer building reliable pipelines and ML platforms
+  location: Lisbon, Portugal
+  email: robin.kestrel@example.com
+  website: https://example.com/
+  sections:
+    profile:
+      - Data engineer with eight years of experience turning messy event streams into dependable, well-tested datasets.
+      - Comfortable owning a platform end to end – from ingestion and storage to the dashboards and models on top.
+    experience:
+      - company: Quillfeather Labs
+        position: Senior Data Engineer
+        start_date: 2022-03
+        end_date: present
+        location: Lisbon, Portugal
+        pin: yes
+        tags: ml, infra
+        summary: Lead engineer for the analytics platform behind a forecasting product.
+        highlights:
+          - Designed a streaming ingestion service in **Go** that processes 40k events per second with exactly-once delivery
+          - Cut nightly batch runtime from 6 hours to 50 minutes by moving transforms from Spark to DuckDB
+          - Built a feature store used by four ML teams for training and online serving
+          - Mentored three junior engineers through their first on-call rotation
+      - company: Brightwater Logistics
+        position: Data Engineer
+        title_variants: Analytics Engineer; Data Platform Engineer
+        start_date: 2019-01
+        end_date: 2022-02
+        location: Porto, Portugal
+        highlights:
+          - Migrated 120 legacy cron jobs to Airflow with lineage tracking and alerting
+          - Wrote a data-quality framework that caught schema drift before it reached Zürich-based finance reports
+          - Reduced warehouse spend by 35% through partitioning and query review
+      - company: Copperline Systems
+        position: Junior Software Developer
+        start_date: 2017-06
+        end_date: 2018-12
+        location: Coimbra, Portugal
+        highlights:
+          - Maintained REST APIs for an inventory management product
+          - Added integration tests that raised coverage from 40% to 75%
+    education:
+      - institution: University of Eastmere
+        area: Computer Science
+        degree: MSc
+        start_date: 2015-09
+        end_date: 2017-06
+        location: Eastmere
+        pin: yes
+        highlights:
+          - 'Thesis: Incremental view maintenance for append-only event logs'
+    projects:
+      - name: tidewater
+        start_date: 2021-01
+        end_date: present
+        summary: Open-source command-line tool for diffing Parquet datasets
+        highlights:
+          - Used in CI by a handful of small data teams to review pipeline changes
+    skills:
+      - label: Languages
+        details: Python (pandas, polars), Go, SQL, Rust
+      - label: Data and infrastructure
+        details: Kafka, Airflow, DuckDB, Spark, PostgreSQL, Kubernetes [EKS, GKE], Terraform
+    honors:
+      - bullet: Best Paper Award, Eastmere Data Systems Workshop (2017)
+      - bullet: Speaker at the fictional Atlantic Data Engineering Meetup (2023)
+design:
+  theme: classic
+  header:
+    connections:
+      show_icons: false
+locale:
+  language: english
+settings:
+  current_date: 2026-10-20

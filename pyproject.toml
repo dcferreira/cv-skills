@@ -1,0 +1,25 @@
+[project]
+name = "cv-skills"
+version = "0.1.0"
+description = "Tailor a master RenderCV CV to a job posting: selection and listed term swaps only, never invented text."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Daniel Ferreira" }]
+requires-python = ">=3.12"
+dependencies = [
+    "rendercv[full]==2.8.*",
+    "ruamel.yaml",
+]
+
+[project.scripts]
+cv-skills = "cv_skills.cli:main"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["uv_build>=0.8,<0.10"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

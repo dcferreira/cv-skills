@@ -1,0 +1,9 @@
+{
+  "name": "cv-skills",
+  "version": "0.1.0",
+  "description": "Tailor a master RenderCV CV to a job posting with pawl: selection and listed term swaps only, a recruiter-style review, and a human approval gate.",
+  "author": {
+    "name": "Daniel Ferreira"
+  },
+  "license": "MIT"
+}

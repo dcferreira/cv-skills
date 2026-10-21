@@ -1,0 +1,19 @@
+# Fictional RenderCV file written before cv-skills: booleans and lists on entries.
+cv:
+  name: Ola Brandt
+  email: ola.brandt@example.com
+  sections:
+    experience:
+      - company: Tidepool Analytics
+        position: Data Analyst
+        start_date: 2020-01
+        end_date: present
+        pin: true
+        tags: [sql, dashboards]
+        highlights:
+          - Replaced 14 spreadsheets with one governed reporting model
+design:
+  theme: classic
+  header:
+    connections:
+      show_icons: false
