@@ -56,6 +56,11 @@ def named(app_dir: str) -> str:
     return json.dumps({"app_dir": app_dir, "requirements_sha256": sha(Path(app_dir) / "requirements.json")})
 
 
+def outcome(line: str) -> str:
+    """check-review's line without its `reviewed_cv_sha256` (tests/test_steps_carry.py checks that)."""
+    return line.split(" reviewed_cv_sha256=")[0]
+
+
 def last_json(line: str) -> dict:
     return json.loads(line)
 
@@ -125,7 +130,7 @@ def test_adapters_table_lists_every_step():
         "floor", "fetch", "posting-ok", "use-browser-text", "use-file", "check-requirements", "name-folder",
         "check-draft", "build-draft", "check-review-shape", "check-review", "review-page", "build-changes",
         "recheck", "final-render", "pinned", "summary-route", "summary-check", "build-summary",
-        "summary-status",
+        "summary-status", "carry",
     }  # fmt: skip
 
 
@@ -303,9 +308,9 @@ def test_fetch_routes_an_upper_case_scheme_as_a_url(repo, capsys, posting_url):
 
 
 def test_fetch_too_many_args_is_usage(repo, capsys):
-    rc, last, _ = run(capsys, "fetch", "p.txt", "run1", JOB, "extra")
+    rc, last, _ = run(capsys, "fetch", "p.txt", "run1", JOB, "master.yaml", "", "extra")
     assert rc == 1 and codes(last) == {"usage"}
-    assert "POSTING RUN_ID [POSTING_URL]" in json.loads(last)["errors"][0]["message"]
+    assert "POSTING RUN_ID [POSTING_URL] [MASTER] [FROM_SELECTION]" in json.loads(last)["errors"][0]["message"]
 
 # --- posting-ok / use-browser-text / use-file -------------------------------
 
@@ -448,7 +453,8 @@ def test_build_draft_cv_txt_has_no_markup_and_its_quotes_verify(drafted_repo, ca
     # experience.0.highlights.0 is `... in **Go** that ...` in the master: quote the stripped line verbatim.
     line = next(l for l in text.splitlines() if l.startswith("Designed a streaming ingestion service in Go"))
     write_review(a, R1_OK, {"id": "r2", "status": "met", "evidence_quote": line, "reason": "x"}, R3)
-    assert run(capsys, "check-review", FINAL, "0", "0", "false")[:2] == (0, "pass")
+    rc, last, _ = run(capsys, "check-review", FINAL, "0", "0", "false")
+    assert (rc, outcome(last)) == (0, "pass")
     verified = json.loads((a / "review.verified.json").read_text())
     r2 = next(r for r in verified["requirements"] if r["id"] == "r2")
     assert (r2["status"], r2["downgraded"]) == ("met", False)
@@ -488,7 +494,7 @@ def test_check_review_shape(app, capsys):
 def test_check_review(app, capsys, review, args, expected):
     write_review(app, *review)
     rc, last, _ = run(capsys, "check-review", FINAL, *args)
-    assert (rc, last) == (0, expected)
+    assert (rc, outcome(last)) == (0, expected)
     assert (app / "review.verified.json").exists()
 
 
@@ -639,7 +645,8 @@ def test_check_draft_rejects_an_unknown_summary_request(app, capsys, request_):
 
 def test_recheck_after_selection_changed(app, capsys):
     write_review(app, R1_OK, R2_OK, R3)
-    assert run(capsys, "check-review", FINAL, "0", "0", "false")[:2] == (0, "pass")
+    rc, last, _ = run(capsys, "check-review", FINAL, "0", "0", "false")
+    assert (rc, outcome(last)) == (0, "pass")
     sel = json.loads((app / "selection.json").read_text())
     sel["sections"] = [s for s in sel["sections"] if s["id"] != "honors"]  # the user drops a section
     (app / "selection.json").write_text(json.dumps(sel))
@@ -854,9 +861,11 @@ def _r1(app: Path) -> dict:
 
 def test_check_review_with_section_refuses_a_quote_only_there(app, capsys):
     write_review(app, R1_PROFILE, R2_OK, R3)
-    assert run(capsys, "check-review", FINAL, "0", "0", "true")[:2] == (0, "pass")
+    rc, last, _ = run(capsys, "check-review", FINAL, "0", "0", "true")
+    assert (rc, outcome(last)) == (0, "pass")
     assert (_r1(app)["status"], _r1(app)["downgraded"]) == ("met", False)
-    assert run(capsys, "check-review", FINAL, "0", "0", "true", "profile")[:2] == (0, "human")
+    rc, last, _ = run(capsys, "check-review", FINAL, "0", "0", "true", "profile")
+    assert (rc, outcome(last)) == (0, "human")
     assert (_r1(app)["status"], _r1(app)["downgraded"]) == ("missing", True)
 
 

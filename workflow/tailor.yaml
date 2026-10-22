@@ -19,6 +19,12 @@ args:
   posting_url: {type: string, default: ""}
   # The written summary's guide (WP17). With no such file the CV's summary stays the master's.
   summary_guide: {type: string, default: summary-guide.md}
+  # Carry an earlier run across a master change: that run's selection.json (its application folder holds the
+  # posting and requirements reused here). The selection is moved onto the current master by matching text,
+  # not redrafted. "" = a normal run.
+  from_selection: {type: string, default: ""}
+  # With from_selection: a change request applied right after the carry (e.g. "add experience.0.highlights.4").
+  changes: {type: string, default: ""}
 
 state:
   app_dir:        {type: string, default: ""}      # applications/<date>-<company>-<role>
@@ -42,6 +48,13 @@ state:
   summary_notes:   {type: string, default: ""}
   summary_request: {type: string, default: none}  # apply_changes' report; build_changes folds it into summary_choice
   selection_sha256: {type: string, default: ""}   # selection.json as summary_route saw it; build_summary holds it
+  # The hash of the CV text the last recruiter review graded (check_review): a change round that alters it gets a
+  # new review, and the page says when the review shown is of an earlier version. "" = no review yet.
+  reviewed_cv_sha256: {type: string, default: ""}
+  # A carried run (from_selection): carry.json's hash (the review page shows it only if unchanged) and one line
+  # for the review question.
+  carry_sha256: {type: string, default: ""}
+  carry_note:   {type: string, default: ""}
   # Why the CV shows the summary it does, for the review page's note. Set only by deterministic steps:
   # summary_route (none, section_dropped, original, pending), build_summary (applied) and summary-status
   # (writer_failed, build_failed, cap_reached). not_reached = no summary step ran (the draft's cap).
@@ -60,7 +73,8 @@ invariants:
     check: scripts/tailor/step.sh pinned ${master} ${master_sha256} ${app_dir} ${requirements_sha256} ${summary_guide} ${guide_sha256}
     message: >-
       the master CV, the summary guide or requirements.json changed during this run (restore it, or
-      start a fresh run with `pawl run tailor --fresh posting=...`)
+      start a fresh run that carries this run's selection onto the changed master:
+      `pawl run tailor --fresh posting=... from_selection=<this run's application folder>/selection.json`)
 
 steps:
   # Design step 4's "pinned entries alone exceed the limit" check, before any fetch or agent. An
@@ -75,13 +89,16 @@ steps:
       too_long: pins_too_long
 
   # 1. Fetch the posting into applications/.tmp-<run_id>/posting.txt, and record its URL (if
-  # known) in posting-url.txt for the review page.
+  # known) in posting-url.txt for the review page. The master is copied there (master.snapshot.yaml) so a later
+  # run can carry this one's selection. A carried run (from_selection) reuses the earlier run's posting.txt and
+  # requirements.json instead.
   - id: fetch
     kind: deterministic
-    run: scripts/tailor/step.sh fetch ${posting} ${run_id} ${posting_url}
+    run: scripts/tailor/step.sh fetch ${posting} ${run_id} ${posting_url} ${master} ${from_selection}
     writes: [app_dir]
     outcomes:
       fetched:      requirements
+      carried:      name_folder
       fetch_failed: browser_fetch
       unusable:     ask_paste
 
@@ -170,9 +187,22 @@ steps:
 
   - id: name_folder
     kind: deterministic
-    run: scripts/tailor/step.sh name-folder ${app_dir}
+    run: scripts/tailor/step.sh name-folder ${app_dir} ${from_selection}
     writes: [app_dir, requirements_sha256]
-    next: draft
+    outcomes:
+      draft: draft
+      carry: carry
+
+  # 3a. A carried run: the earlier selection (and written summary) moved onto this master by matching text, checked
+  # like a draft. ok: built and reviewed as it is; fix: apply_changes gets the check errors and/or `changes` as its
+  # change request. after_changes: its review never sends it to the drafter.
+  - id: carry
+    kind: deterministic
+    run: scripts/tailor/step.sh carry ${app_dir} ${master} ${from_selection} ${page_limit} ${summary_guide} ${summary_section} ${max_bullets} ${changes}
+    writes: [after_changes, carry_sha256, carry_note, change_request]
+    outcomes:
+      ok:  build_draft
+      fix: apply_changes
 
   # 3. Draft a selection; design step 4 (build + page-check) is its postcondition.
   - id: draft
@@ -286,7 +316,7 @@ steps:
     kind: deterministic
     run: scripts/tailor/step.sh check-review ${app_dir} ${redrafts_done} ${prev_supported} ${after_changes} ${summary_section}
     emits: pairs
-    writes: [redrafts_done, prev_supported]
+    writes: [redrafts_done, prev_supported, reviewed_cv_sha256]
     outcomes:
       pass:    summary_route
       human:   summary_route
@@ -400,7 +430,7 @@ steps:
   # 7. The review page.
   - id: review_page
     kind: deterministic
-    run: scripts/tailor/step.sh review-page ${app_dir} ${master} ${posting} ${posting_url} ${summary_guide} ${summary_applied} ${summary_section} ${summary_status}
+    run: scripts/tailor/step.sh review-page ${app_dir} ${master} ${posting} ${posting_url} ${summary_guide} ${summary_applied} ${summary_section} ${summary_status} ${reviewed_cv_sha256} ${carry_sha256}
     writes: [summary, review_html]
     max_visits: 12  # above apply_changes' cap, which bounds the change rounds
     next: human_review
@@ -412,11 +442,13 @@ steps:
       Review the tailored CV before the PDF is made. Open:
       ${review_html}
       ${summary}
+      ${carry_note}
       Every word swap and changed job title is highlighted there next to the original. Choose
       approve to make cv.pdf and cv.md, stop to end without a PDF, or type the changes you want
-      (for example "drop the oldest role", "undo swap 2", "keep the default title for the latest
-      role", "rewrite the summary: lead with the platform work", "keep the original summary"; add
-      "and review again" for a new recruiter review).
+      (for example "drop the oldest role", "undo swap 2", "add experience.0.highlights.4", "keep the
+      default title for the latest role", "rewrite the summary: lead with the platform work", "keep the
+      original summary"). A change to the CV's text gets a new recruiter review; add "and review
+      again" for one anyway.
     options: [approve, stop]
     timeout: 168h
     writes: [change_request]
@@ -438,7 +470,9 @@ steps:
       ${master}. For every ID, run (from the repository root):
         .claude/workflows/scripts/tailor/cv.sh ids --master ${master}
       Edit ${app_dir}/selection.json only, as the request
-      asks: include or exclude sections, entries, bullets or skills items, reorder, undo a swap
+      asks: include or exclude sections, entries, bullets or skills items (a request may name any ID
+      of the IDs listing, e.g. "add experience.0.highlights.4": put that item in, at the place the
+      request asks, else where it fits the order best), reorder, undo a swap
       (swap N is the Nth entry of "swaps", counting from 1, as numbered on the review page), add
       a swap that renames something the master already says, or switch a job title to another title
       its entry lists (the entry's "position", see the IDs listing). Change nothing the request does not
@@ -486,7 +520,7 @@ steps:
 
   - id: build_changes
     kind: deterministic
-    run: scripts/tailor/step.sh build-changes ${app_dir} ${master} ${page_limit} ${rerun_review} ${summary_section} ${summary_choice} ${summary_request} ${max_bullets}
+    run: scripts/tailor/step.sh build-changes ${app_dir} ${master} ${page_limit} ${rerun_review} ${summary_section} ${summary_choice} ${summary_request} ${max_bullets} ${reviewed_cv_sha256}
     emits: pairs
     writes: [after_changes, rerun_review, summary_choice, summary_request]
     max_visits: 12
@@ -494,7 +528,9 @@ steps:
       rerun:   recruiter
       recheck: recheck_review
 
-  # The previous review, re-verified against the changed CV, so the gaps shown stay current.
+  # The previous review, re-verified against the CV: its text is the one that review graded (build_changes sends
+  # any other to the recruiter), or the recruiter is out of visits (the page then says the review is of an earlier
+  # version).
   - id: recheck_review
     kind: deterministic
     run: scripts/tailor/step.sh recheck ${app_dir} ${summary_section}

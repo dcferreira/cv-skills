@@ -326,7 +326,7 @@ main{max-width:60rem;margin:0 auto;padding:1.5rem 16px}
 .posting{margin:-.4rem 0 1.2rem;color:var(--muted);overflow-wrap:anywhere}.posting a{color:var(--fg)}
 section{margin:0 0 2rem}h2.s{font-size:1.15rem;margin:0 0 .6rem}
 .banner{padding:.8rem 1rem;border:2px solid var(--line);border-radius:8px;background:var(--card)}
-.banner b.pass{color:var(--ok)}.banner b.fail{color:var(--bad)}
+.banner b.pass{color:var(--ok)}.banner b.fail{color:var(--bad)}.banner p.stale{color:var(--bad)}
 .cv{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:1.2rem 1.5rem}
 .cv h1{margin:0;font-size:1.6rem}.cv h2{font-size:1rem;text-transform:uppercase;letter-spacing:.06em;
 border-bottom:1px solid var(--line);margin:1.2rem 0 .5rem}.headline,.contact,.meta{color:var(--muted)}
@@ -354,7 +354,7 @@ def must_split(verified: dict) -> tuple[int, int]:
     return musts.count("met"), musts.count("partial")
 
 
-def _banner(verified: dict, page_check: dict) -> str:
+def _banner(verified: dict, page_check: dict, stale: bool = False) -> str:
     gate = verified["gate"]
     met, partial = must_split(verified)
     word = "PASS" if gate == "pass" else "FAIL"
@@ -366,7 +366,13 @@ def _banner(verified: dict, page_check: dict) -> str:
         f" must-haves supported by a verified quote ({met} met, {partial} partial)."
         + (f" Unmet: {html.escape(', '.join(verified['unmet_must']))}." if verified["unmet_must"] else "")
         + "</p>"
-        f'<p>Pages: {pc["pages"]} of {pc["limit"]} allowed ({fit}). Space left on the last page: '
+        + (
+            '<p class="stale">The recruiter graded an earlier version of this CV (its review could not run again);'
+            " its quotes were re-checked against this one, but what it judged missing may now be there.</p>"
+            if stale
+            else ""
+        )
+        + f'<p>Pages: {pc["pages"]} of {pc["limit"]} allowed ({fit}). Space left on the last page: '
         f'{pc["last_page_remaining_mm"]:g} mm ({round(pc["last_page_fill_ratio"] * 100)}% full).</p>'
         "</div>"
     )
@@ -432,6 +438,50 @@ def _list(tag: str, items: list[str], empty: str) -> str:
     return f"<{tag}>" + "".join(f"<li>{html.escape(i)}</li>" for i in items) + f"</{tag}>"
 
 
+def _carry(report: dict | None) -> str:
+    """The carried run's report (carry.json): where the selection came from, what the master changed, and the
+    master items new since then, which a change request can add by ID."""
+    if report is None:
+        return ""
+    e = html.escape
+
+    def rows(cells: list[tuple[str, ...]]) -> str:
+        if not cells:
+            return "<p>None.</p>"
+        return "<table>" + "".join("<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>" for row in cells) + "</table>"
+
+    first_new = report.get("new") or []
+    example = f" (e.g. “add {e(first_new[0]['id'])}”)" if first_new else ""
+    not_carried = (
+        [(f"<code>{e(x['old_id'])}</code>", e(str(x["was"])), e(str(x["why"]))) for x in report.get("dropped", [])]
+        + [
+            (f"swap {int(x['index'])}", f"{e(str(x['from']))} → {e(str(x['to']))}", e(str(x["why"])))
+            for x in report.get("swaps_dropped", [])
+        ]
+        + [
+            (f"<code>{e(x['entry'])}</code> (title)", e(str(x["was"])), f"back to the default, {e(str(x['now']))}")
+            for x in report.get("titles_reset", [])
+        ]
+    )
+    summary = str(report.get("summary", "none"))
+    return (
+        '<section class="carry"><h2 class="s">Carried from an earlier run</h2>'
+        f"<p>This run started from the selection reviewed in <code>{e(str(report.get('from', '')))}</code>, moved onto"
+        f" the current master by matching each item's text, not redrafted. {int(report.get('kept', 0))} items are as"
+        " reviewed there."
+        + ("" if summary == "none" else f" Written summary: {e(summary)}.")
+        + "</p><h3>Changed in the master (carried, with the new text)</h3>"
+        + rows(
+            [(f"<code>{e(x['id'])}</code>", f"<del>{e(str(x['was']))}</del>", f"<ins>{e(str(x['now']))}</ins>") for x in report.get("changed", [])]
+        )
+        + "<h3>Not carried</h3>"
+        + rows(not_carried)
+        + f"<h3>New in the master since then</h3><p>Not selected: add any of them by ID in a change request{example}.</p>"
+        + rows([(f"<code>{e(x['id'])}</code>", e(str(x.get("text", "")))) for x in first_new])
+        + "</section>"
+    )
+
+
 def _posting(url: str | None) -> str:
     """The link to the original posting, under the title. A link loads nothing: the page stays self-contained."""
     if not url:
@@ -450,6 +500,8 @@ def render_page(
     posting_url: str | None = None,
     written=None,
     summary_note: tuple[str, str] | None = None,
+    stale_review: bool = False,
+    carry: dict | None = None,
 ) -> str:
     """The complete review page. `written` is the checked (Guide, sentences) of a written summary, or None;
     `summary_note` is (section, text), a line shown at that section when it holds the master's own summary."""
@@ -482,7 +534,7 @@ def render_page(
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>CV review: {title}</title><style>{CSS}</style></head><body><main>"
         f"<h1>CV review: {title}</h1>{_posting(posting_url)}"
-        f"<section>{_banner(verified, page_check)}</section>"
+        f"<section>{_banner(verified, page_check, stale_review)}</section>{_carry(carry)}"
         f'<section><h2 class="s">Tailored CV</h2><p>Highlighted text was swapped, or is a job title chosen from'
         f" the master's variants; hover it (or see the list below) for the original wording.{intro}</p>{r.cv(sel)}</section>"
         f'<section><h2 class="s">Changes ({changes})</h2>{_changes(records, titles, summary_row)}</section>'
@@ -508,6 +560,8 @@ def review_page(
     summary_path: Path | None = None,
     guide_path: Path | None = None,
     summary_note: tuple[str, str] | None = None,
+    stale_review: bool = False,
+    carry: dict | None = None,
 ) -> dict:
     """Write the review page; returns the ok JSON. Raises Failure (nothing written).
 
@@ -567,7 +621,8 @@ def review_page(
                 )
             ],
         )
-    write_out(out_path, render_page(m, sel, texts, records, verified, page_check, posting_url, written, summary_note))
+    page = render_page(m, sel, texts, records, verified, page_check, posting_url, written, summary_note, stale_review, carry)
+    write_out(out_path, page)
     result = {"ok": True, "out": str(out_path), "swaps": len(records)}
     if written is not None:
         result["summary_sentences"] = len(written[1])

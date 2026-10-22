@@ -242,11 +242,11 @@ def test_posting_url_is_optional_and_reaches_fetch():
     wf = _load()
     assert wf["args"]["posting_url"] == {"type": "string", "default": ""}
     steps = {s["id"]: s for s in wf["steps"]}
-    assert steps["fetch"]["run"] == "scripts/tailor/step.sh fetch ${posting} ${run_id} ${posting_url}"
+    assert steps["fetch"]["run"] == "scripts/tailor/step.sh fetch ${posting} ${run_id} ${posting_url} ${master} ${from_selection}"
     # the review page's link comes from the run's arguments, not from a file an agent could rewrite
     assert steps["review_page"]["run"] == (
         "scripts/tailor/step.sh review-page ${app_dir} ${master} ${posting} ${posting_url} ${summary_guide}"
-        " ${summary_applied} ${summary_section} ${summary_status}"
+        " ${summary_applied} ${summary_section} ${summary_status} ${reviewed_cv_sha256} ${carry_sha256}"
     )
 
 
@@ -281,7 +281,7 @@ def test_the_recruiter_never_sees_the_summary_section():
         "check_review": "check-review ${app_dir} ${redrafts_done} ${prev_supported} ${after_changes} ${summary_section}",
         "build_changes": (
             "build-changes ${app_dir} ${master} ${page_limit} ${rerun_review} ${summary_section}"
-            " ${summary_choice} ${summary_request} ${max_bullets}"
+            " ${summary_choice} ${summary_request} ${max_bullets} ${reviewed_cv_sha256}"
         ),
         "recheck_review": "recheck ${app_dir} ${summary_section}",
     }
@@ -454,7 +454,7 @@ def test_max_bullets_per_entry():
     )
     assert steps["floor"]["run"].endswith(" ${summary_guide} ${max_bullets}")  # an invalid value blocks first
     assert steps["build_changes"]["run"].endswith(
-        " ${summary_section} ${summary_choice} ${summary_request} ${max_bullets}"
+        " ${summary_section} ${summary_choice} ${summary_request} ${max_bullets} ${reviewed_cv_sha256}"
     )
     taper = (
         "The most recent roles get the most bullets, up to the limit; use the room the limit frees for the most"
@@ -471,3 +471,48 @@ def test_max_bullets_per_entry():
         assert taper in desc and recent in desc, sid
         assert "keeps 0-2" not in desc and "any role may keep no bullets" not in desc, sid
         assert "a pinned role may keep no bullets" not in desc, sid  # would contradict the min for a recent role
+
+
+# --- carrying a run across a master change (from_selection) ------------------------
+
+
+def test_from_selection_is_an_optional_arg_that_reaches_fetch_and_name_folder():
+    wf = _load()
+    assert wf["args"]["from_selection"] == {"type": "string", "default": ""}
+    assert wf["args"]["changes"] == {"type": "string", "default": ""}
+    steps = {s["id"]: s for s in wf["steps"]}
+    assert steps["fetch"]["outcomes"]["carried"] == "name_folder"  # no new requirements: the earlier run's
+    assert steps["name_folder"]["run"] == "scripts/tailor/step.sh name-folder ${app_dir} ${from_selection}"
+    assert steps["name_folder"]["outcomes"] == {"draft": "draft", "carry": "carry"}
+
+
+def test_a_carried_run_never_redrafts():
+    steps = {s["id"]: s for s in _load()["steps"]}
+    carry = steps["carry"]
+    assert carry["kind"] == "deterministic"
+    assert carry["outcomes"] == {"ok": "build_draft", "fix": "apply_changes"}
+    assert set(carry["writes"]) == {"after_changes", "carry_sha256", "carry_note", "change_request"}
+    assert carry["run"] == (
+        "scripts/tailor/step.sh carry ${app_dir} ${master} ${from_selection} ${page_limit} ${summary_guide}"
+        " ${summary_section} ${max_bullets} ${changes}"
+    )
+
+
+def test_the_review_question_carries_the_carry_note_and_add_by_id():
+    steps = {s["id"]: s for s in _load()["steps"]}
+    assert "${carry_note}" in steps["human_review"]["question"]
+    assert '"add experience.0.highlights.4"' in steps["human_review"]["question"]
+    assert '"add experience.0.highlights.4"' in steps["apply_changes"]["description"]
+
+
+def test_the_gate_follows_the_reviewed_text():
+    wf = _load()
+    steps = {s["id"]: s for s in wf["steps"]}
+    assert "reviewed_cv_sha256" in steps["check_review"]["writes"]
+    assert wf["state"]["reviewed_cv_sha256"] == {"type": "string", "default": ""}
+    assert steps["build_changes"]["run"].endswith(" ${reviewed_cv_sha256}")
+
+
+def test_the_pinned_message_offers_a_carried_run():
+    (inv,) = _load()["invariants"]
+    assert "from_selection=" in inv["message"]
