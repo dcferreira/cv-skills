@@ -91,13 +91,16 @@ class _Map:
                 self.edited.add(olds[i])
 
     def target(self, id: str) -> str | None:
-        """The new ID of any old ID, including an entry's `.summary`, `.bullet` and `.position`."""
+        """The new ID of any old ID, including an entry's `.summary`, `.bullet` and `.position`, if the new
+        master has it (a `.position` needs the new entry to have a title)."""
         if id in self.ids:
             return self.ids[id]
         head, _, tail = id.rpartition(".")
-        if tail in _ENTRY_SUFFIXES and head in self.ids:
-            return f"{self.ids[head]}.{tail}"
-        return None
+        if tail not in _ENTRY_SUFFIXES or head not in self.ids:
+            return None
+        nid = f"{self.ids[head]}.{tail}"
+        exists = bool(_titles(self.new, self.ids[head])) if tail == "position" else nid in self.new.nodes
+        return nid if exists else None
 
     def new_items(self) -> list[dict]:
         """Selectable items of the new master with no counterpart in the old one (a new entry, not its children)."""
@@ -168,7 +171,13 @@ def carry_selection(old: Master, new: Master, sel: Selection, sentences: list[Se
         for e in s.entries:
             ne = carry(e.id, "not in the new master (removed, or changed and moved)")
             if ne is None:
+                for c in [*(e.highlights or []), *(e.details or [])]:
+                    dropped.append({"old_id": c, "was": old.nodes[c].text or c, "why": f"its entry `{e.id}` was not carried"})
                 continue
+            summary_id = f"{e.id}.summary"
+            if summary_id in old.nodes and (ns := ids.target(summary_id)) and new.nodes[ns].text != old.nodes[summary_id].text:
+                changed.append({"old_id": summary_id, "id": ns, "was": old.nodes[summary_id].text, "now": new.nodes[ns].text})
+                ids.edited.add(summary_id)
             out: dict = {"id": ne}
             for key, kind, chosen in (("highlights", "highlight", e.highlights), ("details", "detail", e.details)):
                 if new.children(ne, kind):
@@ -206,9 +215,14 @@ def carry_selection(old: Master, new: Master, sel: Selection, sentences: list[Se
 
     summary, summary_note = None, "none"
     if sentences is not None:
-        lost = [src for st in sentences for src in st.sources if not src.startswith("guide.") and ids.target(src) is None]
+
+        def citable(src: str) -> bool:
+            target = ids.target(src)
+            return target is not None and (target in selected or target.rpartition(".")[0] in selected)
+
+        lost = [src for st in sentences for src in st.sources if not src.startswith("guide.") and not citable(src)]
         if lost:
-            summary_note = f"not carried: it cites {', '.join(dict.fromkeys(lost))}, not in the new master"
+            summary_note = f"not carried: it cites {', '.join(dict.fromkeys(lost))}, not carried; it is written again"
         else:
             summary = {
                 "sentences": [
@@ -225,7 +239,7 @@ def carry_selection(old: Master, new: Master, sel: Selection, sentences: list[Se
     report = {
         "old_master_hash": old.hash,
         "master_hash": new.hash,
-        "kept": len(selected) - len(changed),
+        "kept": len(selected - {c["id"] for c in changed}),
         "changed": changed,
         "dropped": dropped,
         "swaps_dropped": swaps_dropped,

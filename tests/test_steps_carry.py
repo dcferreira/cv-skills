@@ -161,6 +161,35 @@ def test_carry_keeps_the_summary_with_its_sources_remapped(old_run, repo, capsys
     assert json.loads((a / "summary.json").read_text())["sentences"][0]["sources"] == ["experience.0.highlights.3"]
 
 
+def _old_tailored(old_run, profile: list[str]) -> None:
+    lines = "".join(f"      - {json.dumps(x)}\n" for x in profile)
+    (old_run / "tailored.yaml").write_text(f"cv:\n  name: x\n  sections:\n    profile:\n{lines}")
+
+
+def test_carry_keeps_a_summary_the_earlier_cv_showed(old_run, repo, capsys):
+    summary = {"sentences": [{"text": "Built a feature store.", "sources": ["experience.0.highlights.2"]}]}
+    (old_run / "summary.json").write_text(json.dumps(summary))
+    _old_tailored(old_run, ["Built a feature store."])
+    write_guide(repo)
+    a = _carried_folder(repo)
+    rc, token, payload = _carry_with_guide(capsys)
+    assert (rc, token) == (0, "ok") and (a / "summary.json").exists()
+    assert "summary_choice" not in payload
+
+
+def test_carry_does_not_bring_back_a_summary_the_user_turned_down(old_run, repo, capsys):
+    # The earlier run wrote a summary, but its CV showed the master's own (the user chose "keep the original").
+    summary = {"sentences": [{"text": "Built a feature store.", "sources": ["experience.0.highlights.2"]}]}
+    (old_run / "summary.json").write_text(json.dumps(summary))
+    _old_tailored(old_run, ["Comfortable owning a platform end to end.", "Data engineer with eight years."])
+    write_guide(repo)
+    a = _carried_folder(repo)
+    rc, token, payload = _carry_with_guide(capsys)
+    assert (rc, token) == (0, "ok") and not (a / "summary.json").exists()
+    assert payload["summary_choice"] == "original"
+    assert json.loads((a / "carry.json").read_text())["summary"].startswith("not carried: the CV reviewed there showed")
+
+
 def test_carry_without_a_guide_carries_no_summary(old_run, repo, capsys):
     (old_run / "summary.json").write_text(json.dumps({"sentences": []}))
     a = _carried_folder(repo)

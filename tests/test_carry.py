@@ -325,3 +325,41 @@ def test_an_edit_next_to_an_insert_is_not_guessed(masters):
     assert out.report["changed"] == []
     assert [d["old_id"] for d in out.report["dropped"]] == ["experience.0.highlights.2"]
     assert [n["id"] for n in out.report["new"]] == ["experience.0.highlights.2", "experience.0.highlights.3"]
+
+
+ENTRY_SUMMARY = "        summary: Lead engineer for the analytics platform behind a forecasting product.\n"
+
+
+def test_an_edited_entry_summary_is_flagged(masters):
+    new_summary = "        summary: Engineer on the analytics platform behind a forecasting product.\n"
+    old, new = masters(edited((ENTRY_SUMMARY, new_summary)))
+    out = carry_selection(old, new, sel_of(SELECTION))
+    assert [(c["old_id"], c["now"]) for c in out.report["changed"]] == [
+        ("experience.0.summary", "Engineer on the analytics platform behind a forecasting product.")
+    ]
+    assert out.selection["swaps"][0]["target_id"] == "experience.0.summary"  # its "from" is still there, once
+
+
+def test_a_summary_citing_a_removed_entry_summary_is_not_carried(masters):
+    old, new = masters(edited((ENTRY_SUMMARY, "")))
+    sentences = [Sentence("Lead engineer.", ("experience.0.summary",))]
+    out = carry_selection(old, new, sel_of(SELECTION), sentences)
+    assert out.summary is None and "experience.0.summary" in out.report["summary"]
+
+
+def test_a_summary_citing_a_dropped_entry_is_not_carried(masters):
+    # A new role added before experience.1, whose company is renamed: one old entry against two new ones in
+    # that block, so nothing is paired and experience.1 is dropped.
+    sentences = [Sentence("Data engineer.", ("experience.1",))]
+    new_role = "      - company: Northgate Data\n        position: Staff Data Engineer\n        start_date: 2025-01\n        end_date: present\n"
+    old, new = masters(
+        edited(("      - company: Brightwater Logistics", new_role + "      - company: Brightwater Freight"))
+    )
+    out = carry_selection(old, new, sel_of(SELECTION), sentences)
+    assert out.summary is None
+    # the dropped entry's bullets are listed with it
+    assert [d["old_id"] for d in out.report["dropped"]] == [
+        "experience.1",
+        "experience.1.highlights.1",
+        "experience.1.highlights.0",
+    ]

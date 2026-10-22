@@ -491,7 +491,7 @@ def test_a_carried_run_never_redrafts():
     carry = steps["carry"]
     assert carry["kind"] == "deterministic"
     assert carry["outcomes"] == {"ok": "build_draft", "fix": "apply_changes"}
-    assert set(carry["writes"]) == {"after_changes", "carry_sha256", "carry_note", "change_request"}
+    assert set(carry["writes"]) == {"after_changes", "carry_sha256", "carry_note", "change_request", "summary_choice"}
     assert carry["run"] == (
         "scripts/tailor/step.sh carry ${app_dir} ${master} ${from_selection} ${page_limit} ${summary_guide}"
         " ${summary_section} ${max_bullets} ${changes}"

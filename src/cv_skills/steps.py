@@ -35,7 +35,7 @@ from cv_skills.master import load_master
 from cv_skills.pagecheck import page_check
 from cv_skills.review import check_review
 from cv_skills.reviewpage import must_split, review_page
-from cv_skills.summary import load_guide, load_summary, summary_check
+from cv_skills.summary import load_guide, load_summary, paragraph, summary_check
 
 APPLICATIONS = Path("applications")
 MARKER = ".cv-skills-run"  # holds the `.tmp-<run_id>` name the folder had before `name-folder`
@@ -528,7 +528,7 @@ def step_review_page(
                     {
                         "code": "carry_report_changed",
                         "id": str(report),
-                        "message": f"`{report}` is not the report the carry step wrote; it is not shown.",
+                        "message": f"`{report}` is not the report the carry step wrote. Restore it, or start the carried run again.",
                     }
                 ],
             )
@@ -585,6 +585,18 @@ def _carry_note(old: str, report: dict) -> str:
     return f"Carried from {old}: {', '.join(parts)} (listed on the review page)."
 
 
+def _showed_summary(tailored: Path, section: str, sentences: list) -> bool:
+    """Whether the earlier run's tailored.yaml has the written summary in `section` (else it showed the master's:
+    the user kept the original, or the writer failed). No tailored.yaml: assume it did."""
+    if not tailored.is_file():
+        return True
+    try:
+        shown = load_tailored(tailored)["cv"].get("sections", {}).get(section)
+    except (Failure, AttributeError, TypeError):
+        return True
+    return list(shown or []) == [paragraph(sentences)]
+
+
 def step_carry(
     a: str,
     master: str,
@@ -606,7 +618,11 @@ def step_carry(
     old = old_master(src.parent, Path(master), sel.master_hash)
     old_summary = src.parent / "summary.json"
     sentences = load_summary(old_summary) if section and old_summary.is_file() else None
-    carried = carry_selection(old, new, sel, sentences)
+    turned_down = sentences is not None and not _showed_summary(src.parent / "tailored.yaml", section, sentences)
+    carried = carry_selection(old, new, sel, None if turned_down else sentences)
+    if turned_down:
+        # summary.json stays in a folder whatever the user chose: carry what the CV showed, the master's own.
+        carried.report["summary"] = "not carried: the CV reviewed there showed the master's own summary, and so does this one"
     _write_atomic(app / "selection.json", json.dumps(carried.selection, ensure_ascii=False, indent=2) + "\n")
     if carried.summary is not None:
         _write_atomic(app / "summary.json", json.dumps(carried.summary, ensure_ascii=False, indent=2) + "\n")
@@ -640,6 +656,8 @@ def step_carry(
     if changes:
         request = f"{request} Then, as the user asked: {changes}" if request else changes
     payload = {"after_changes": True, "carry_sha256": _sha256(app / "carry.json"), "carry_note": _carry_note(str(src.parent), report)}
+    if turned_down:
+        payload["summary_choice"] = "original"
     if request:
         payload["change_request"] = request
     _final("fix" if request else "ok", payload)

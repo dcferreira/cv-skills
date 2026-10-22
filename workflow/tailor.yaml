@@ -199,7 +199,7 @@ steps:
   - id: carry
     kind: deterministic
     run: scripts/tailor/step.sh carry ${app_dir} ${master} ${from_selection} ${page_limit} ${summary_guide} ${summary_section} ${max_bullets} ${changes}
-    writes: [after_changes, carry_sha256, carry_note, change_request]
+    writes: [after_changes, carry_sha256, carry_note, change_request, summary_choice]
     outcomes:
       ok:  build_draft
       fix: apply_changes
@@ -305,7 +305,7 @@ steps:
     postcondition: scripts/tailor/step.sh check-review-shape ${app_dir} ${summary_section}
     attempts: 3
     attempt_key: "review-${visits}"
-    max_visits: 8
+    max_visits: 14  # the first draft and 2 redrafts, then each of the 10 change rounds that alters the CV text
     next: check_review
     catch:
       - {on: exhausted, next: recheck_review}  # no new review: re-verify the last one

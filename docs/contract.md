@@ -499,10 +499,10 @@ deterministic steps set:
   earlier version: the banner gets `<p class="stale">The recruiter graded an earlier version of this CV …</p>` and
   the question's summary line starts `Recruiter gate (from a review of an earlier version of this CV):`. The
   `build-changes` step takes the same hash as its last argument and routes to `rerun` (a new recruiter review)
-  whenever the changed CV's text differs from it (`""`, no review yet, always differs), so this shows only when the
-  recruiter step ran out of attempts.
+  whenever the changed CV's text differs from it (`""`, no review yet, always differs), so this shows only when a
+  step reached its cap with a CV the review did not grade (the recruiter's attempts or visits, or the draft step's).
 - CARRY_SHA is the `carry` step's `carry_sha256`. When given, `carry.json` must have that hash
-  (`carry_report_changed` otherwise) and the page shows `<section class="carry">` after the banner: the earlier
+  (`carry_report_changed` otherwise: the run blocks) and the page shows `<section class="carry">` after the banner: the earlier
   folder, the count kept as reviewed, the items changed in the master (old and new text), those not carried (items,
   swaps, titles, each with why), and the items new in the master with their IDs, as "add <ID>" requests use them.
 
@@ -538,13 +538,19 @@ skills items within the matched entry by text):
    are as many of each. They are carried and reported in `changed` (`old_id`, `id`, `was`, `now`).
 3. Anything else selected is left out and reported in `dropped` (`old_id`, `was`, `why`).
 
-`<entry>.summary`, `.bullet` and `.position` follow their entry. Order is the earlier selection's. An entry's
+`<entry>.summary`, `.bullet` and `.position` follow their entry, when the new master has them (a `.position` needs a
+title); an entry `summary` whose text changed is reported in `changed` too. A dropped entry's selected highlights and
+skills items are listed in `dropped` after it. Order is the earlier selection's. An entry's
 `highlights`/`details` key follows the new master entry (present iff it has them); a section left with no entries is
 omitted. A chosen `position` no longer among the entry's titles goes back to the default (`titles_reset`). A swap is
 kept, retargeted, only if its target was carried and its `from` occurs exactly once in the new master text; else it
 is in `swaps_dropped` (`index`, 1-based as on the review page, `target_id`, `from`, `to`, `why`). The summary is
-carried only if every source maps (`guide.facts.<n>` as is); `summary` says `carried` (and which cited items
-changed), `not carried: …`, or `none` (no guide or no earlier `summary.json`). `new` lists the new master's sections,
+carried only if every source maps to a carried item or entry (`guide.facts.<n>` as is: the guide is not compared
+with the earlier run's), and only if the earlier `tailored.yaml` showed it (its guide section is exactly the
+paragraph). If the earlier CV showed the master's own summary instead (the user chose it, or the writer failed),
+nothing is carried and the step also sets `summary_choice=original`, so the new CV shows the master's too. `summary`
+says `carried` (and which cited items changed), `not carried: …` (a summary is then written again, unless it was the
+master's), or `none` (no guide or no earlier `summary.json`). `new` lists the new master's sections,
 entries, highlights and skills items that no old item maps to (an item inside a new entry or section is not listed
 separately), as `{"id", "text"}`. `carry.json`: `{"from", "old_master_hash", "master_hash", "kept", "changed",
 "dropped", "swaps_dropped", "titles_reset", "new", "summary"}`, `kept` = selected entries and items carried unchanged.

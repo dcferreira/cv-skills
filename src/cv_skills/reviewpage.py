@@ -467,8 +467,8 @@ def _carry(report: dict | None) -> str:
     return (
         '<section class="carry"><h2 class="s">Carried from an earlier run</h2>'
         f"<p>This run started from the selection reviewed in <code>{e(str(report.get('from', '')))}</code>, moved onto"
-        f" the current master by matching each item's text, not redrafted. {int(report.get('kept', 0))} items are as"
-        " reviewed there."
+        f" the current master by matching each item's text, not redrafted. At the start of this run (before any change"
+        f" request), {int(report.get('kept', 0))} items were as reviewed there."
         + ("" if summary == "none" else f" Written summary: {e(summary)}.")
         + "</p><h3>Changed in the master (carried, with the new text)</h3>"
         + rows(

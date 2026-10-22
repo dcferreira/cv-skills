@@ -138,7 +138,7 @@ reworded in place (the master's lists still line up around it) is carried with i
 flagged; anything the carry cannot match is left out and listed, never guessed. Swaps whose words
 are gone, and job titles no longer listed, are dropped and listed too. With a summary guide, the
 written summary is kept verbatim with its sources remapped, unless it cites something not carried
-(it is then written again). The carried selection is checked like any draft: if it no longer passes
+(it is then written again); if the earlier CV showed your master's own summary, so does the new one. The carried selection is checked like any draft: if it no longer passes
 (a newly pinned entry, the page limit), the smallest fix goes to the change step, together with
 `changes`. Then the recruiter reviews it and you are asked as usual. The review page lists what
 changed in the master, what was not carried and what is new in the master, by ID, ready for "add
