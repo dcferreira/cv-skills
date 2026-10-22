@@ -84,6 +84,10 @@ the ID/field and says how to fix it.
 | `pin_missing` | 1 | A pinned entry is not selected (also when its whole section is omitted). |
 | `summary_section_missing` | 1 | `tailor` workflow only (`check-draft`, `build-draft`, `build-changes` step adapters): a summary guide is in use and the selection omits its section (`id` = the section). See "Written summary". |
 | `too_many_highlights` | 1 | `tailor` workflow only (`check-draft`, `build-draft`, `build-changes` step adapters, trailing argument MAX_BULLETS = the workflow input `max_bullets`, default 4): an entry lists more than MAX_BULLETS highlights. One error per entry (`id` = the entry); the message gives the count and the limit. MAX_BULLETS below 1 or not an integer is `usage`; not passed, there is no cap. |
+| `carry_master_not_found` | 1 | `tailor` workflow only (`carry` step adapter): neither the earlier run's `master.snapshot.yaml` nor any committed version of the master has the hash of its selection's `master_hash` (`id` = that run's folder; `message` says how to save it). See "Carrying a selection". |
+| `carry_source_invalid` | 1 | `tailor` workflow only (`fetch` with `from_selection`): the `selection.json`, `posting.txt` or `requirements.json` of the earlier run is missing (one error per file, `id` = the path). |
+| `carry_posting_mismatch` | 1 | `tailor` workflow only (`fetch` with `from_selection`): the run's posting URL (as linked on the review page) differs from the earlier run's `posting-url.txt` (`id` = that file). |
+| `carry_report_changed` | 1 | `tailor` workflow only (`review-page` step with CARRY_SHA): `carry.json` is missing or not the bytes the `carry` step wrote (`id` = the file). |
 | `swap_target_unknown` | 1 | A swap target is not an ID in the master. |
 | `swap_target_not_selected` | 1 | A swap target (or its entry) is not in the selection. For a `summary`/`bullet` target the fix is to select its entry. |
 | `swap_forbidden_field` | 1 | A swap targets a non-swappable field (position, also one with `title_variants`, company, dates, section, structured entry, …). |
@@ -190,9 +194,10 @@ On exit 0 (also when the pinned entries do not fit: the caller acts on `fits`):
 ## Application folder
 
 A `tailor` run works in `applications/<date>-<company>-<role>/` (`posting.txt`, `posting.browser.txt` when the posting
-came through the browser, `requirements.json`, `selection.json`, `tailored.yaml`, `cv.txt`, `page-check.json`, the
-reviews, `summary.json` and `summary-preview.yaml` with a summary guide, `review.html`, then `cv.pdf` and `cv.md`; and
-the `.cv-skills-run` marker). When the posting's web address is known it
+came through the browser, `requirements.json`, `master.snapshot.yaml` (the master's bytes when the run started, for a later carried run),
+`selection.json`, `tailored.yaml`, `cv.txt`, `page-check.json`, the reviews, `summary.json` and `summary-preview.yaml`
+with a summary guide, `carry.json` in a carried run, `review.html`, then `cv.pdf` and `cv.md`; and the `.cv-skills-run`
+marker). When the posting's web address is known it
 also holds `posting-url.txt`: that URL alone, one line ending in `\n`. It is the workflow arg `posting_url` if given
 (checked by the URL rule of `fetch-posting --url`; a bad one blocks the run at its `fetch` step with `url_invalid`,
 and since a run keeps its arguments the fix is a fresh run), else `posting` when that is a valid http(s) URL; with
@@ -291,7 +296,7 @@ selectable or swappable.
 ## Master hash
 
 `"sha256:" + sha256(master file bytes).hexdigest()`. Any byte change to the master (comments included) changes it,
-and every selection must be redrafted against the new IDs.
+and every selection must be redrafted against the new IDs, or carried onto them by text (see "Carrying a selection").
 
 ## `selection.json`
 
@@ -485,11 +490,71 @@ did not finish". An unknown STATUS is `usage` (exit 1). `step.sh summary-status 
 `{"summary_status": "<REASON>"}` for REASON `writer_failed`, `build_failed` or `cap_reached`; any other REASON is
 `usage` (exit 1).
 
+The `review-page` step's two further optional arguments, `REVIEWED CARRY_SHA`, come from workflow state that only
+deterministic steps set:
+
+- REVIEWED is `reviewed_cv_sha256`, which `check-review` (the step) emits: the SHA-256 (hex) of the recruiter's
+  text for the tailored YAML it verified (exactly `cv.txt`, the summary's section left out), computed from the YAML,
+  never read from `cv.txt`. When it is not the hash of the current tailored YAML's text, the review shown graded an
+  earlier version: the banner gets `<p class="stale">The recruiter graded an earlier version of this CV …</p>` and
+  the question's summary line starts `Recruiter gate (from a review of an earlier version of this CV):`. The
+  `build-changes` step takes the same hash as its last argument and routes to `rerun` (a new recruiter review)
+  whenever the changed CV's text differs from it (`""`, no review yet, always differs), so this shows only when the
+  recruiter step ran out of attempts.
+- CARRY_SHA is the `carry` step's `carry_sha256`. When given, `carry.json` must have that hash
+  (`carry_report_changed` otherwise) and the page shows `<section class="carry">` after the banner: the earlier
+  folder, the count kept as reviewed, the items changed in the master (old and new text), those not carried (items,
+  swaps, titles, each with why), and the items new in the master with their IDs, as "add <ID>" requests use them.
+
 With `--posting-url URL` (optional), right under the page's `<h1>` comes
 `<p class="posting">Posting: <a href="URL" target="_blank" rel="noopener noreferrer">URL</a></p>`, the URL
 HTML-escaped (quotes included) in both places. A link loads nothing, so the page stays self-contained. A bad URL is
 `url_invalid` (exit 2) and nothing is written; without the flag there is no such line. The link is on the review
 page only, never in `cv.pdf` or `cv.md`.
+
+## Carrying a selection (`tailor` `from_selection`)
+
+A run is pinned to its master (`pinned`); `from_selection=<folder>/selection.json` starts a fresh run from an
+earlier run's selection instead of a draft. The step adapters, in order:
+
+- `fetch … MASTER FROM_SELECTION` copies the master's bytes to `A/master.snapshot.yaml` (every run). With
+  FROM_SELECTION it fetches nothing: it copies the earlier folder's `posting.txt` and `requirements.json` (checked as
+  in `app-dir`), so the gate uses the requirements that selection was reviewed against, and routes `carried` (to
+  `name-folder`, skipping the extractor). A posting URL other than the earlier `posting-url.txt` is
+  `carry_posting_mismatch`.
+- `name-folder A FROM_SELECTION` routes `carry` (FROM_SELECTION given) or `draft`.
+- `carry A MASTER FROM_SELECTION LIMIT GUIDE SECTION MAX_BULLETS [CHANGES]` finds the earlier master: the earlier
+  folder's `master.snapshot.yaml`, else a committed version of MASTER (`git log --all` of that file), whichever has
+  the hash of the selection's `master_hash`; else `carry_master_not_found`. The selection must be valid for that
+  master (every `build` structure and swap check, `hash_mismatch` included). Then it writes `A/selection.json` for
+  the current master, `A/summary.json` (with a guide: the earlier one, sources remapped) and `A/carry.json`.
+
+Matching, per parent (sections by key; entries within the matched section by their `ids` text; highlights and
+skills items within the matched entry by text):
+
+1. Equal text: the k-th copy of a text to the k-th copy in the new list, wherever it moved.
+2. Edited in place: the old and new lists are aligned (Python `difflib.SequenceMatcher`, no autojunk); in each
+   `replace` block, the old items still unmatched pair in order with the new items still unmatched, only if there
+   are as many of each. They are carried and reported in `changed` (`old_id`, `id`, `was`, `now`).
+3. Anything else selected is left out and reported in `dropped` (`old_id`, `was`, `why`).
+
+`<entry>.summary`, `.bullet` and `.position` follow their entry. Order is the earlier selection's. An entry's
+`highlights`/`details` key follows the new master entry (present iff it has them); a section left with no entries is
+omitted. A chosen `position` no longer among the entry's titles goes back to the default (`titles_reset`). A swap is
+kept, retargeted, only if its target was carried and its `from` occurs exactly once in the new master text; else it
+is in `swaps_dropped` (`index`, 1-based as on the review page, `target_id`, `from`, `to`, `why`). The summary is
+carried only if every source maps (`guide.facts.<n>` as is); `summary` says `carried` (and which cited items
+changed), `not carried: …`, or `none` (no guide or no earlier `summary.json`). `new` lists the new master's sections,
+entries, highlights and skills items that no old item maps to (an item inside a new entry or section is not listed
+separately), as `{"id", "text"}`. `carry.json`: `{"from", "old_master_hash", "master_hash", "kept", "changed",
+"dropped", "swaps_dropped", "titles_reset", "new", "summary"}`, `kept` = selected entries and items carried unchanged.
+
+The carried selection then gets the draft's checks (`check-draft`'s, and `build` + `page-check`). All pass and no
+CHANGES: `ok` (to `build-draft`, then the recruiter). Otherwise `fix`, with `change_request` = the errors as one
+instruction to make the smallest fix, then `Then, as the user asked: <CHANGES>` (or CHANGES alone): to
+`apply_changes`. Both set `after_changes=true` (its review never redrafts), `carry_sha256` and `carry_note` (one line
+for the review question). Whatever the matching does, the CV is built by `build` from the current master: master text
+plus listed swaps only.
 
 ## Written summary (`guide-check`, `summary-check`)
 

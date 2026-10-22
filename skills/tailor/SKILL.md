@@ -53,7 +53,21 @@ yourself outside the run's steps.
    `summary_guide=<path>`. Without a guide file the master's summary is used unchanged.
 
    With no arguments, `pawl run tailor` resumes the repo's paused run (e.g. one parked at the review
-   question or blocked). If pawl refuses with "workflow file has changed since run … started", the
+   question or blocked).
+
+   **The master changed during a run.** A run is pinned to the master it started with: after a
+   master edit it blocks with `input_changed`, and resuming cannot fix that. Do not start a plain
+   fresh run, which would redraft everything the user already reviewed. Carry the run instead:
+
+   ```
+   pawl run tailor --fresh posting=<the same posting> from_selection=<that run's application folder>/selection.json [changes="<the user's change request>"]
+   ```
+
+   It reuses that run's posting and requirements, moves its selection (and written summary) onto
+   the new master by matching each item's text, and goes straight to the recruiter review and the
+   review question, with no new draft. Pass the user's pending change request (e.g. "add
+   experience.0.highlights.4" for a bullet they just added to the master) as `changes=`, so it is
+   applied before the first review. The same works from any earlier run's folder, approved or not. If pawl refuses with "workflow file has changed since run … started", the
    plugin was updated while that run was paused, and a run only resumes on the workflow it started
    with. Tell the user, and offer a fresh run (`pawl run tailor --fresh posting=…`); the old
    run's application folder stays as it is.
@@ -63,7 +77,9 @@ yourself outside the run's steps.
    it shows the CV with every word swap and changed job title highlighted, with the original on
    hover and in a numbered list of changes. Their answer is
    `approve`, `stop`, or free-text changes (the README's "Change requests" and "Requirements and the
-   review page").
+   review page"). A change can add any master item by its ID ("add experience.0.highlights.4"). In a
+   carried run the question has one more line, what the carry kept and could not; the page lists the
+   items the master changed, the ones not carried and the ones new in the master, by ID.
 
 5. **At the end**, report the terminal message: where `cv.pdf` and `cv.md` are, or why the run
    paused. Nothing is sent or uploaded anywhere; applying to the job is the user's to do (the

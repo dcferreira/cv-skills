@@ -44,7 +44,7 @@ or use the `cv-skills:tailor` skill. It copies the `tailor` workflow into `.clau
 runs it with pawl:
 
 ```
-pawl run tailor posting=<URL or file> [posting_url=<URL>] [page_limit=2] [max_bullets=4] [master=master.yaml] [summary_guide=summary-guide.md]
+pawl run tailor posting=<URL or file> [posting_url=<URL>] [page_limit=2] [max_bullets=4] [master=master.yaml] [summary_guide=summary-guide.md] [from_selection=<earlier run>/selection.json [changes="..."]]
 ```
 
 With no arguments, `pawl run tailor` resumes the repo's paused run. The run:
@@ -75,6 +75,8 @@ Questions wait up to 7 days, then the run pauses; `pawl run tailor` resumes it.
 | `max_bullets` | 4 | The most bullets any one entry keeps, checked in code (`too_many_highlights`). |
 | `master` | `master.yaml` | The master CV. |
 | `summary_guide` | `summary-guide.md` | The written summary's guide; no such file, no written summary. |
+| `from_selection` | none | An earlier run's `selection.json`: start from it instead of a new draft (see "When the master changes"). |
+| `changes` | none | With `from_selection`: a change request applied before the first review. |
 
 **How bullets are spread.** Besides the `max_bullets` cap, the drafter is told: the most recent roles
 get the most bullets, and the room the cap frees goes to the most relevant bullets of the other roles.
@@ -109,11 +111,44 @@ requirements are graded and gate the draft; the others are listed under **For yo
 ### Change requests
 
 At the review question you answer `approve`, `stop`, or the changes you want in your own words, for
-example "drop the oldest role", "undo swap 2", "keep the default title for the latest role", "rewrite
-the summary: lead with the platform work", "keep the original summary". Add "and review again" for a
-new recruiter review. Changes are applied and checked like a draft, then you are asked again, for up
-to 10 rounds; after that the run stops without a PDF. While a summary guide is in effect, a request to drop the summary keeps the section and
+example "drop the oldest role", "undo swap 2", "add experience.0.highlights.4", "keep the default
+title for the latest role", "rewrite the summary: lead with the platform work", "keep the original
+summary". Any master item can be added by its ID (`cv-skills ids` lists them; the review page of a
+carried run lists the new ones). Changes are applied and checked like a draft, then you are asked
+again, for up to 10 rounds; after that the run stops without a PDF. When a change alters the CV's
+text, the recruiter reviews it again, so the gate on the page is about the CV you are looking at (add
+"and review again" for a new review anyway). If the recruiter step cannot run, the page says that its
+review is of an earlier version. While a summary guide is in effect, a request to drop the summary keeps the section and
 shows the CV's own summary instead.
+
+### When the master changes
+
+A run is pinned to the master it started with: edit `master.yaml` mid-run and the run blocks
+(`input_changed`), since the CV must be built from the master that was checked. Instead of a plain
+fresh run, which drafts everything again, carry the run:
+
+```
+pawl run tailor --fresh posting=<the same posting> from_selection=applications/<earlier run>/selection.json [changes="add experience.0.highlights.4"]
+```
+
+The new run reuses the earlier run's `posting.txt` and `requirements.json`, and moves its selection
+onto the new master instead of drafting: every section, entry, bullet and skills item is matched by
+its text, so IDs shifted by an insertion still find their item, in the order you reviewed. A bullet
+reworded in place (the master's lists still line up around it) is carried with its new text and
+flagged; anything the carry cannot match is left out and listed, never guessed. Swaps whose words
+are gone, and job titles no longer listed, are dropped and listed too. With a summary guide, the
+written summary is kept verbatim with its sources remapped, unless it cites something not carried
+(it is then written again). The carried selection is checked like any draft: if it no longer passes
+(a newly pinned entry, the page limit), the smallest fix goes to the change step, together with
+`changes`. Then the recruiter reviews it and you are asked as usual. The review page lists what
+changed in the master, what was not carried and what is new in the master, by ID, ready for "add
+<ID>".
+
+The earlier run can be any run, approved or not. Its master is found in its folder
+(`master.snapshot.yaml`, written by every run) or, for older runs, in the git history of the master
+file, by hash; if neither has it, the run blocks with `carry_master_not_found` and says how to save
+it. The guarantee is unchanged: the carried run builds only from the current master's text plus
+listed swaps, checked by `build` like any draft.
 
 ### Output and privacy
 
@@ -122,6 +157,8 @@ Everything goes into `applications/<date>-<company>-<role>/` in your CV repo:
 - `posting.txt`; `posting.browser.txt` when the posting came through the browser; `posting-url.txt`
   when the posting's address is known;
 - `requirements.json`;
+- `master.snapshot.yaml`, a copy of the master the run was built from (for a later carried run);
+- `carry.json` in a carried run: what the carry kept, changed, left out, and what is new in the master;
 - `selection.json`, `tailored.yaml`, `cv.txt` (the text the recruiter step reads) and `page-check.json`;
 - `review.json` / `review.verified.json`, with earlier rounds kept as `review.round<N>.json`;
 - `summary.json` and `summary-preview.yaml` (the writer's check of the CV with its summary), with a
