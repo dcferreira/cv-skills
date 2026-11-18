@@ -68,6 +68,7 @@ the ID/field and says how to fix it.
 | `render_failed` | 2 | RenderCV crashed or produced no PDF, poppler failed on the PDF, or the design has a margin in an unsupported unit (`id` = the `--yaml` path, or `""`). |
 | `text_missing` | 2 | `final-render`: a body string of the CV is not in the PDF's extracted text (`id` = its path ID in the tailored YAML, e.g. `experience.0.highlights.2`; `message` quotes its first 60 characters). |
 | `text_private_use` | 2 | `final-render`: the extracted PDF text, header included, contains Unicode private-use characters (category Co: U+E000..F8FF and the supplementary planes), i.e. icon-font glyphs (`id` = `""`; `message` lists up to 8 code points and says to set `design.header.connections.show_icons: false` or pick a theme without icon fonts). |
+| `text_page_furniture` | 2 | `final-render`: text sits wholly inside the margins at a page break (the footer of a page that is not the last, or a running header on a page after the first), so the extracted text runs it into the next page's first line (`id` = `page.N`, the break after page N; `message` quotes up to 3 such lines and says to set `design.page.show_footer: false`). |
 | `text_order` | 2 | `final-render`: a body string is in the PDF text but before the previous string, so the reading order is garbled (`id` = its path ID; `message` names the previous one). |
 | `internal_invalid_output` | 2 | The tailored YAML failed RenderCV validation: a cv-skills bug, not a selection problem. |
 | `internal_error` | 2 | Any other unexpected exception: a cv-skills bug. `message` is `<Type>: <message> (a cv-skills bug; please report)`. |
@@ -227,6 +228,7 @@ On exit 0:
   only after the check passes and both targets are writable; on failure neither file is touched, and an `--out-dir`
   created by the run is removed again.
 - Separately, private-use characters anywhere in the extracted text (header included) fail with `text_private_use`.
+- Text wholly inside the margins at a page break (a page footer on any page but the last, a running header on any page but the first) fails with `text_page_furniture`. A one-page CV's footer and the first page's top note pass.
   Use a theme without icon fonts; the example sets `design.header.connections.show_icons: false` on `classic`.
 
 ## `check-deps`

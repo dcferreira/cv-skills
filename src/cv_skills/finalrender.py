@@ -3,7 +3,9 @@
 The check is the ATS guarantee: every body string of the CV (summaries, highlights, bullets, skills
 items, text entries) must appear in what `pdftotext` extracts, in YAML order. Header fields (name,
 headline, contact) are out of scope for that check; a second check rejects private-use
-characters anywhere in the text (icon-font glyphs), header included.
+characters anywhere in the text (icon-font glyphs), header included. A third rejects text in the
+margins at a page break (a page footer, or a running header on a later page): extracted text runs it
+straight into the first line of the next page, so an ATS reads "Name - 1/2 Company, Position" as one string.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from ruamel.yaml import YAML
 
 from cv_skills.cli import Failure
 from cv_skills.master import split_details
-from cv_skills.render import _model, pdf_pages, pdf_text, render_pdf
+from cv_skills.render import Page, _model, page_margins, pdf_pages, pdf_text, render_pdf
 
 _QUOTES = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"'})
 _DASHES = str.maketrans(dict.fromkeys("‐‑‒–—―−", "-"))
@@ -160,6 +162,32 @@ def check_private_use(extracted: str) -> list[dict]:
     ]
 
 
+def check_page_furniture(pages: list[Page], top: float, bottom: float) -> list[dict]:
+    """One `text_page_furniture` error per page break that has text in the margins next to it.
+
+    That is text wholly inside the bottom margin of a page that is not the last (a footer) or wholly inside
+    the top margin of a page that is not the first (a running header). The first page's top note and the
+    last page's footer touch no page break, so they pass.
+    """
+    errors: list[dict] = []
+    for n, page in enumerate(pages[:-1], start=1):
+        after = pages[n]
+        found = [ln.text for ln in page.lines if ln.y0 >= page.height - bottom] + [
+            ln.text for ln in after.lines if ln.y1 <= top
+        ]
+        if found:
+            shown = "; ".join(f"`{t}`" for t in found[:3])
+            errors.append(
+                {
+                    "code": "text_page_furniture",
+                    "id": f"page.{n}",
+                    "message": f"Text in the margins at the break after page {n} ({shown}) runs into the next page's"
+                    f" first line in the extracted text. Set `design.page.show_footer: false`.",
+                }
+            )
+    return errors
+
+
 def _out_unwritable(out_dir: Path, why: str) -> Failure:
     return Failure(2, [{"code": "out_unwritable", "id": str(out_dir), "message": f"Cannot write to `{out_dir}`: {why}."}])
 
@@ -208,10 +236,15 @@ def final_render(yaml: Path, out_dir: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="cv-skills-") as work:
         pdf = render_pdf(yaml, Path(work), markdown=True)
         extracted = pdf_text(pdf)
-        errors = check_text(items, extracted) + check_private_use(extracted)
+        rendered = pdf_pages(pdf)
+        errors = (
+            check_text(items, extracted)
+            + check_private_use(extracted)
+            + check_page_furniture(rendered, *page_margins(yaml))
+        )
         if errors:
             raise Failure(2, errors)
-        pages = len(pdf_pages(pdf))
+        pages = len(rendered)
         _write_outputs({"cv.pdf": pdf, "cv.md": Path(work) / "cv.md"}, out_dir)
     return {
         "ok": True,
