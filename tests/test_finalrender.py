@@ -277,3 +277,48 @@ def test_malformed_yaml_is_yaml_invalid_not_internal_error(tmp_path, text):
         final_render(path, tmp_path / "out")
     assert exc.value.code == 2 and exc.value.errors[0]["code"] == "yaml_invalid"
     assert "Master" not in exc.value.errors[0]["message"]
+
+
+def test_check_page_furniture_flags_footer_and_running_header_at_breaks():
+    from cv_skills.finalrender import check_page_furniture
+    from cv_skills.render import Line, Page
+
+    def page(*lines):
+        return Page(612.0, 792.0, [Line(50, y0, 300, y1, t) for y0, y1, t in lines])
+
+    top_note, body, footer = (22, 35, "Last updated"), (60, 72, "Body text"), (758, 770, "Name - 1/2")
+    # one page: its top note and footer touch no page break
+    assert check_page_furniture([page(top_note, body, footer)], 50.4, 50.4) == []
+    # body text whose font box pokes into the top margin (y0 < top) is not furniture
+    assert check_page_furniture([page(body), page((47, 61, "Company, Position"))], 50.4, 50.4) == []
+    errs = check_page_furniture(
+        [page(top_note, body, footer), page((30, 40, "Running header"), body, footer), page(body, footer)], 50.4, 50.4
+    )
+    assert [(e["code"], e["id"]) for e in errs] == [("text_page_furniture", "page.1"), ("text_page_furniture", "page.2")]
+    assert "`Name - 1/2`; `Running header`" in errs[0]["message"] and "show_footer: false" in errs[0]["message"]
+
+
+def _two_pages(make_cv, footer: bool):
+    from ruamel.yaml import YAML
+
+    path = make_cv(25)  # two pages; one entry much longer than a page overflows the bottom margin
+    yaml = YAML()
+    data = yaml.load(path.read_text(encoding="utf-8"))
+    data.setdefault("design", {})["page"] = {"show_footer": footer}
+    with path.open("w", encoding="utf-8") as f:
+        yaml.dump(data, f)
+    return path
+
+
+def test_footer_on_multi_page_cv_fails_final_render(make_cv, tmp_path):
+    out = tmp_path / "out"
+    with pytest.raises(Failure) as exc:
+        final_render(_two_pages(make_cv, footer=True), out)
+    assert exc.value.code == 2
+    assert {e["code"] for e in exc.value.errors} == {"text_page_furniture"}
+    assert not out.exists()
+
+
+def test_multi_page_cv_without_footer_passes(make_cv, tmp_path):
+    r = final_render(_two_pages(make_cv, footer=False), tmp_path / "out")
+    assert r["ok"] is True and r["pages"] == 2
